@@ -1,0 +1,56 @@
+---
+- name: Install code-server plain vanilla
+  hosts: code_server
+  become: true
+
+  vars:
+    code_server_user: root
+    code_server_password: "CHANGE_ME_STRONG_PASSWORD"
+    code_server_port: 8080
+    code_server_bind_addr: "0.0.0.0"
+
+  tasks:
+    - name: Install basic dependencies
+      ansible.builtin.apt:
+        name:
+          - curl
+          - ca-certificates
+        state: present
+        update_cache: true
+
+    - name: Download official code-server install script
+      ansible.builtin.get_url:
+        url: https://code-server.dev/install.sh
+        dest: /tmp/code-server-install.sh
+        mode: "0755"
+
+    - name: Install code-server
+      ansible.builtin.command: /tmp/code-server-install.sh
+      args:
+        creates: /usr/bin/code-server
+
+    - name: Create code-server config directory
+      ansible.builtin.file:
+        path: "/home/{{ code_server_user }}/.config/code-server"
+        state: directory
+        owner: "{{ code_server_user }}"
+        group: "{{ code_server_user }}"
+        mode: "0700"
+
+    - name: Write code-server config
+      ansible.builtin.copy:
+        dest: "/home/{{ code_server_user }}/.config/code-server/config.yaml"
+        owner: "{{ code_server_user }}"
+        group: "{{ code_server_user }}"
+        mode: "0600"
+        content: |
+          bind-addr: {{ code_server_bind_addr }}:{{ code_server_port }}
+          auth: password
+          password: {{ code_server_password }}
+          cert: false
+
+    - name: Enable and start code-server user service
+      ansible.builtin.systemd:
+        name: "code-server@{{ code_server_user }}"
+        enabled: true
+        state: restarted
