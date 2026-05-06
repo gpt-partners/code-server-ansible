@@ -6,7 +6,7 @@
   vars:
     code_server_user: root
     code_server_password: "CHANGE_ME_STRONG_PASSWORD"
-    code_server_port: 8088
+    code_server_port: 8080
     code_server_bind_addr: "127.0.0.1"
 
   tasks:
