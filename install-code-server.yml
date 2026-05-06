@@ -6,10 +6,11 @@
   vars:
     code_server_user: root
     code_server_password: "CHANGE_ME_STRONG_PASSWORD"
-    code_server_port: 8080
-    code_server_bind_addr: "0.0.0.0"
+    code_server_port: 8088
+    code_server_bind_addr: "127.0.0.1"
 
   tasks:
+    # ----- Code-Server -----
     - name: Install basic dependencies
       ansible.builtin.apt:
         name:
@@ -31,7 +32,7 @@
 
     - name: Create code-server config directory
       ansible.builtin.file:
-        path: "/home/{{ code_server_user }}/.config/code-server"
+        path: "/{{ code_server_user }}/.config/code-server"
         state: directory
         owner: "{{ code_server_user }}"
         group: "{{ code_server_user }}"
@@ -39,7 +40,7 @@
 
     - name: Write code-server config
       ansible.builtin.copy:
-        dest: "/home/{{ code_server_user }}/.config/code-server/config.yaml"
+        dest: "/{{ code_server_user }}/.config/code-server/config.yaml"
         owner: "{{ code_server_user }}"
         group: "{{ code_server_user }}"
         mode: "0600"
@@ -52,5 +53,67 @@
     - name: Enable and start code-server user service
       ansible.builtin.systemd:
         name: "code-server@{{ code_server_user }}"
+        enabled: true
+        state: restarted
+
+    # ----- CADDY -----
+
+    - name: Install Caddy dependencies
+      ansible.builtin.apt:
+        name:
+          - debian-keyring
+          - debian-archive-keyring
+          - apt-transport-https
+          - curl
+        state: present
+        update_cache: true
+
+    - name: Download Caddy GPG key
+      ansible.builtin.get_url:
+        url: https://dl.cloudsmith.io/public/caddy/stable/gpg.key
+        dest: /tmp/caddy.gpg
+
+    - name: Convert GPG key to keyring format
+      ansible.builtin.command: >
+        gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg /tmp/caddy.gpg
+      args:
+        creates: /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+
+    - name: Download Caddy repo file
+      ansible.builtin.get_url:
+        url: https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt
+        dest: /etc/apt/sources.list.d/caddy-stable.list
+        mode: "0644"
+
+    - name: Ensure correct permissions for keyring
+      ansible.builtin.file:
+        path: /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+        mode: "0644"
+
+    - name: Ensure correct permissions for repo list
+      ansible.builtin.file:
+        path: /etc/apt/sources.list.d/caddy-stable.list
+        mode: "0644"
+
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: true
+
+    - name: Install Caddy
+      ansible.builtin.apt:
+        name: caddy
+        state: present
+
+    - name: Configure Caddy reverse proxy
+      ansible.builtin.copy:
+        dest: /etc/caddy/Caddyfile
+        content: |
+          {{ domain_name }} {
+              reverse_proxy localhost:{{ code_server_port }}
+          }
+
+    - name: Restart Caddy
+      ansible.builtin.systemd:
+        name: caddy
         enabled: true
         state: restarted
