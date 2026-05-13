@@ -1,0 +1,26 @@
+---
+- name: Install Kasm Workspaces
+  hosts: all
+  become: true
+
+  tasks:
+    - name: Download Kasm release tarball
+      get_url:
+        url: https://kasm-static-content.s3.amazonaws.com/kasm_release_1.18.1.tar.gz
+        dest: /tmp/kasm_release_1.18.1.tar.gz
+
+    - name: Extract Kasm release
+      unarchive:
+        src: /tmp/kasm_release_1.18.1.tar.gz
+        dest: /tmp
+        remote_src: true
+
+    - name: Restart Docker to clear stale plugin state
+      service:
+        name: docker
+        state: restarted
+
+    - name: Run Kasm installer
+      shell: bash /tmp/kasm_release/install.sh --accept-eula --proxy-port 8443 --swap-size 2048 --admin-password {{ admin_password }}
+      args:
+        chdir: /tmp
